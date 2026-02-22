@@ -1,0 +1,192 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── HELPER FUNCTIONS ────────────────────────────────────────────────────
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isSignedIn()
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    function isTechnician() {
+      return isSignedIn()
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'technician';
+    }
+
+    function isCustomer() {
+      return isSignedIn()
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'customer';
+    }
+
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    function bookingBelongsToMe(bookingData) {
+      return bookingData.customerId == request.auth.uid;
+    }
+
+    function bookingAssignedToMe(bookingData) {
+      return bookingData.technicianId == request.auth.uid;
+    }
+
+    function jobAssignedToMe(jobData) {
+      return jobData.technicianId == request.auth.uid;
+    }
+
+    function jobBelongsToMe(jobData) {
+      return jobData.customerId == request.auth.uid;
+    }
+
+    // Restricts which fields a partial update may touch
+    function onlyUpdates(allowedFields) {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(allowedFields);
+    }
+
+    // ── USERS ───────────────────────────────────────────────────────────────
+
+    match /users/{uid} {
+      // User reads their own doc; admin reads any
+      allow read: if isOwner(uid) || isAdmin();
+
+      // User creates their own doc at sign-up (role must be customer or technician)
+      allow create: if isOwner(uid)
+        && request.resource.data.role in ['customer', 'technician']
+        && request.resource.data.uid == uid;
+
+      // User updates their own non-privileged fields (cannot elevate role or set stripeId)
+      // Admin can update anything
+      allow update: if isAdmin()
+        || (isOwner(uid)
+            && !request.resource.data.diff(resource.data).affectedKeys()
+                .hasAny(['role', 'stripeCustomerId', 'uid', 'createdAt']));
+
+      allow delete: if isAdmin();
+    }
+
+    // ── VEHICLES ────────────────────────────────────────────────────────────
+    // NOTE: Technicians access vehicle data via booking.vehicleSnapshot —
+    //       they do NOT query this collection directly.
+
+    match /vehicles/{vehicleId} {
+      allow read: if isAdmin()
+        || (isSignedIn() && resource.data.ownerId == request.auth.uid);
+
+      allow create: if isSignedIn()
+        && request.resource.data.ownerId == request.auth.uid;
+
+      allow update: if isAdmin()
+        || (isSignedIn() && resource.data.ownerId == request.auth.uid
+            && !onlyUpdates(['ownerId', 'createdAt', 'vin']));
+
+      allow delete: if isAdmin()
+        || (isSignedIn() && resource.data.ownerId == request.auth.uid);
+    }
+
+    // ── SERVICES (catalog) ──────────────────────────────────────────────────
+
+    match /services/{serviceId} {
+      // Public read — no auth required for service catalog browsing
+      allow read: if true;
+      // Only admin can create/update/delete service listings
+      allow write: if isAdmin();
+    }
+
+    // ── BOOKINGS ────────────────────────────────────────────────────────────
+
+    match /bookings/{bookingId} {
+      allow read: if isAdmin()
+        || (isSignedIn() && bookingBelongsToMe(resource.data))
+        || (isTechnician() && bookingAssignedToMe(resource.data))
+        // Technicians can read pending unassigned bookings (job queue)
+        || (isTechnician() && resource.data.status == 'pending' && resource.data.technicianId == null);
+
+      // Customer creates booking (must set status=pending, technicianId=null)
+      allow create: if isCustomer()
+        && request.resource.data.customerId == request.auth.uid
+        && request.resource.data.status == 'pending'
+        && request.resource.data.technicianId == null;
+
+      // Technician accepts (sets technicianId to self, status to 'accepted') —
+      // enforces first-accept-wins via Firestore transaction on client
+      allow update: if isAdmin()
+        || (isTechnician()
+            && resource.data.technicianId == null
+            && resource.data.status == 'pending'
+            && request.resource.data.technicianId == request.auth.uid
+            && request.resource.data.status == 'accepted'
+            && onlyUpdates(['technicianId', 'status']))
+        // Technician advances status on their own booking
+        || (isTechnician()
+            && bookingAssignedToMe(resource.data)
+            && onlyUpdates(['status']))
+        // Customer cancels a pending-only booking
+        || (isCustomer()
+            && bookingBelongsToMe(resource.data)
+            && resource.data.status == 'pending'
+            && request.resource.data.status == 'cancelled'
+            && onlyUpdates(['status']));
+
+      allow delete: if isAdmin();
+    }
+
+    // ── JOBS ────────────────────────────────────────────────────────────────
+
+    match /jobs/{jobId} {
+      allow read: if isAdmin()
+        || (isSignedIn() && jobBelongsToMe(resource.data))
+        || (isTechnician() && jobAssignedToMe(resource.data));
+
+      // Jobs are created server-side via Admin SDK (bypasses rules)
+      allow create: if isAdmin();
+
+      // Technician updates their job's location, stages, and completion data
+      allow update: if isAdmin()
+        || (isTechnician()
+            && jobAssignedToMe(resource.data)
+            && onlyUpdates([
+                'techLocation',
+                'stages',
+                'currentStage',
+                'notes',
+                'startedAt',
+                'completedAt'
+              ]));
+
+      allow delete: if isAdmin();
+    }
+
+    // ── SERVICE HISTORY ─────────────────────────────────────────────────────
+
+    match /serviceHistory/{recordId} {
+      allow read: if isAdmin()
+        || (isSignedIn() && resource.data.customerId == request.auth.uid);
+
+      // Created server-side only (Admin SDK) — immutable from client
+      allow create: if isAdmin();
+      allow update, delete: if isAdmin();
+    }
+
+    // ── NOTIFICATIONS ───────────────────────────────────────────────────────
+
+    match /notifications/{notifId} {
+      allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
+
+      // Created server-side only (Admin SDK)
+      allow create: if isAdmin();
+
+      // User may only mark their own notification as read
+      allow update: if isSignedIn()
+        && resource.data.userId == request.auth.uid
+        && onlyUpdates(['read']);
+
+      allow delete: if isAdmin();
+    }
+
+  }
+}

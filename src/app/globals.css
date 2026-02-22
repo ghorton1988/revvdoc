@@ -2,26 +2,50 @@
 @tailwind components;
 @tailwind utilities;
 
+/* RevvDoc is dark-first — no light mode toggle in MVP */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #0A0A0A;
+  --foreground: #FFFFFF;
+  --surface-raised: #141414;
+  --surface-overlay: #1E1E1E;
+  --surface-border: #2A2A2A;
+  --brand: #D4A843;
+  --brand-light: #E8C567;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html {
+  color-scheme: dark;
 }
 
 body {
   color: var(--foreground);
   background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-inter), system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  /* Prevent horizontal scroll on mobile */
+  overflow-x: hidden;
+  /* Mobile viewport height fix */
+  min-height: 100svh;
 }
 
+/* Scrollbar styling for dark theme */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: var(--surface-raised); }
+::-webkit-scrollbar-thumb { background: var(--surface-border); border-radius: 2px; }
+
 @layer utilities {
-  .text-balance {
-    text-wrap: balance;
+  .text-balance { text-wrap: balance; }
+
+  /* Safe area padding for mobile notches / home indicators */
+  .pb-safe { padding-bottom: env(safe-area-inset-bottom); }
+  .pt-safe { padding-top: env(safe-area-inset-top); }
+
+  /* Gold gradient text (used in branding) */
+  .text-brand-gradient {
+    background: linear-gradient(135deg, #E8C567, #D4A843, #A8832F);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
   }
 }
