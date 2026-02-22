@@ -17,15 +17,10 @@ export default function LandingPage() {
           <p className="text-text-secondary mt-2 text-sm">Mobile Vehicle Service</p>
         </div>
 
-        {/* Build status card */}
-        <div className="bg-surface-raised rounded-2xl p-4 text-left space-y-2">
-          <p className="text-xs text-text-muted uppercase tracking-widest">Build Status</p>
-          <div className="flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full bg-status-serviceDue animate-pulse" />
-            <span className="text-sm text-text-secondary">Phase 2 — Scaffold complete</span>
-          </div>
-          <p className="text-xs text-text-muted">Phase 3 (Core Build) next</p>
-        </div>
+        {/* Tagline */}
+        <p className="text-text-muted text-sm leading-relaxed">
+          On-demand mechanics &amp; detailers that come to you.
+        </p>
 
         {/* Auth CTAs */}
         <div className="space-y-3">
