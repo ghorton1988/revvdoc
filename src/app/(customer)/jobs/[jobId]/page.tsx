@@ -1,13 +1,12 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { useLiveJob } from '@/hooks/useLiveJob';
 import { getBookingById } from '@/services/bookingService';
 import { formatPrice } from '@/lib/formatters';
-import { MAPS_API_KEY, MAPS_LIBRARIES, DARK_MAP_OPTIONS } from '@/lib/maps/googleMaps';
 import type { Booking, JobStage } from '@/types';
 
 // ─── Stage config ─────────────────────────────────────────────────────────────
@@ -25,16 +24,6 @@ const STAGE_ORDER: JobStage[] = [
   'dispatched', 'en_route', 'arrived', 'in_progress', 'quality_check', 'complete',
 ];
 
-// ─── Google Maps component (dynamically imported — no SSR) ────────────────────
-
-interface MapProps {
-  techLat: number | null;
-  techLng: number | null;
-  destLat: number;
-  destLng: number;
-}
-
-// We keep this as a separate component loaded via dynamic() to prevent SSR issues
 const LiveMap = dynamic(() => import('./LiveMap'), {
   ssr: false,
   loading: () => (

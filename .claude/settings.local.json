@@ -8,7 +8,15 @@
       "Bash(npm run dev:*)",
       "Bash(export NVM_DIR=\"$HOME/.nvm\")",
       "Bash(source \"$NVM_DIR/nvm.sh\")",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "Bash(. \"$NVM_DIR/nvm.sh\")",
+      "Bash(nvm use:*)",
+      "Bash(/Users/ivannalisa/.nvm/versions/node/v20.20.0/bin/node:*)",
+      "Bash(/Users/ivannalisa/.nvm/versions/node/v20.20.0/bin/npm --version)",
+      "Bash(PATH=\"/Users/ivannalisa/.nvm/versions/node/v20.20.0/bin:$PATH\" node:*)",
+      "Bash(PATH=\"/Users/ivannalisa/.nvm/versions/node/v20.20.0/bin:$PATH\" npm:*)",
+      "Bash(PATH=\"/Users/ivannalisa/.nvm/versions/node/v20.20.0/bin:$PATH\" npm run build:*)",
+      "Bash(PATH=\"/Users/ivannalisa/.nvm/versions/node/v20.20.0/bin:$PATH\" /Users/ivannalisa/.nvm/versions/node/v20.20.0/bin/node:*)"
     ]
   }
 }

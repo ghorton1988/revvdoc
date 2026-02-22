@@ -20,7 +20,7 @@ const STATUS_STYLES: Record<BookingStatus, { label: string; cls: string }> = {
 
 export default function BookingDetailPage() {
   const { bookingId } = useParams<{ bookingId: string }>();
-  const { user } = useAuth();
+  useAuth();
   const router = useRouter();
 
   const [booking, setBooking] = useState<Booking | null>(null);
@@ -46,6 +46,7 @@ export default function BookingDetailPage() {
         if (job) setJobId(job.jobId);
       });
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [booking?.status, bookingId]);
 
   async function handleCancel() {

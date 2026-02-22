@@ -139,8 +139,8 @@ export default function QueuePage() {
         return;
       }
 
-      const { jobId } = await res.json();
-      router.push(`/active-job`);
+      await res.json();
+      router.push('/active-job');
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to accept job');
     } finally {

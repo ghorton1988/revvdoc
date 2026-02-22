@@ -1,14 +1,14 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { useGeoLocation } from '@/hooks/useGeoLocation';
-import { getTechnicianActiveJob, advanceJobStage, updateTechLocation, getJobById } from '@/services/jobService';
+import { getTechnicianActiveJob, advanceJobStage, updateTechLocation } from '@/services/jobService';
 import { getBookingById } from '@/services/bookingService';
 import { haversineDistanceMeters } from '@/lib/maps/googleMaps';
-import { formatPrice, formatDate } from '@/lib/formatters';
+import { formatPrice } from '@/lib/formatters';
 import type { Job, Booking, JobStage } from '@/types';
 
 // ─── Stage config ─────────────────────────────────────────────────────────────

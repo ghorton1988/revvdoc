@@ -193,40 +193,44 @@ NEXT_PUBLIC_APP_URL
 
 ## 10. Current Project Status
 
-**Last updated:** 2026-02-21
-**Current phase:** 2 — Scaffold ✅ COMPLETE → entering Phase 3 (Core Build)
+**Last updated:** 2026-02-22
+**Current phase:** 3 — Core Build ✅ COMPLETE → entering Phase 4 (Integration)
 
 **What's working:**
 - Next.js 14 project scaffolded with TypeScript + Tailwind
-- Full directory structure created (all route groups, pages, API routes)
+- Full directory structure (all route groups, pages, API routes)
 - All TypeScript interfaces defined (`src/types/index.ts`)
-- Firestore security rules (`firestore.rules`) and indexes (`firestore.indexes.json`)
-- Firebase client + Admin SDK initialized (`src/lib/firebase/`)
-- Stripe server singleton (`src/lib/stripe/stripe.ts`)
-- Google Maps utilities + dark map theme (`src/lib/maps/googleMaps.ts`)
+- Firestore security rules + indexes scaffolded
+- Firebase client + Admin SDK initialized
+- Stripe server singleton + webhook handler
+- Google Maps dark-theme utilities + Haversine GPS throttle
 - Middleware auth + role guards (`src/middleware.ts`)
-- All service files as skeletons with function signatures
-- All hooks as skeletons
-- All pages as stubs with TODO Phase 3 comments
-- Dark theme Tailwind config (gold brand, surface hierarchy, status colors)
-- `.env.local` template ready to fill in
+- **Auth system:** sign-in, sign-up (email + Google OAuth), verify-phone (SMS OTP), session cookies
+- **Services:** userService, vehicleService, serviceService, bookingService, jobService, notificationService — all fully implemented
+- **Hooks:** useAuth, useLiveJob, useGeoLocation, useNotifications — all implemented
+- **Customer pages:** dashboard, vehicles, vehicles/add (VIN decode), services, bookings, booking detail, live job map (/jobs/[jobId])
+- **Booking flow:** 5-step (service → vehicle → date+address → review → Stripe Elements payment)
+- **Technician pages:** queue (job list + accept CTA), active-job (stage stepper + GPS broadcaster + Complete → capture payment)
+- **API routes:** /api/auth/session, /api/vehicles/decode-vin, /api/admin/assign-technician, /api/stripe/create-payment-intent, /api/stripe/capture-payment, /api/stripe/webhook
+- **Build:** `npm run build` passes clean (30 routes, 0 errors)
 
 **What's in progress:**
-- Nothing — Phase 2 is complete
+- Nothing — Phase 3 is complete
 
 **Blockers / open questions:**
-- User must fill in `.env.local` with actual Firebase, Stripe, and Google Maps API keys before Phase 3 can run
+- `.env.local` must be filled in with real Firebase, Stripe, and Google Maps API keys before running
 - Firestore rules must be deployed: `firebase deploy --only firestore:rules,firestore:indexes`
-- Firebase CLI must be installed and project linked for deployment
+- Stripe webhook must be registered in Stripe Dashboard (or use `stripe listen` for local dev)
+- Google Maps JS API key must have Maps JavaScript API + Places API enabled in GCP Console
 
 **Next session should start with:**
-Phase 3 — Core Build. Suggested order:
-1. Fill in `.env.local` keys
-2. Deploy Firestore rules + indexes
-3. Implement `useAuth` hook + sign-in/sign-up pages (auth is the foundation)
-4. Implement `userService.ts` (createUser, getUserById)
-5. Implement dashboard page (vehicle health badges)
-6. Implement vehicles (add by VIN, VinLookupForm + NHTSA API)
+Phase 4 — Integration. Suggested order:
+1. Fill in `.env.local` and test auth flow end-to-end
+2. Seed Firestore with at least 2-3 real service catalog documents
+3. Deploy Firestore rules + indexes
+4. Test full booking flow with Stripe test card (4242 4242 4242 4242)
+5. Test technician accept → GPS broadcast → stage advance → capture payment
+6. Remaining stub pages: admin panel pages, /history, /job-history, /notifications, /payment-methods, /vehicles/[vehicleId]
 
 ---
 

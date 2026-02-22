@@ -426,7 +426,7 @@ function PaymentForm() {
       <div>
         <h2 className="text-lg font-semibold text-text-primary">Payment</h2>
         <p className="text-sm text-text-muted mt-0.5">
-          Pre-authorization only — you won't be charged until service is complete.
+          Pre-authorization only &mdash; you won&apos;t be charged until service is complete.
         </p>
       </div>
       <form onSubmit={handleSubmit} className="space-y-4">
@@ -474,7 +474,6 @@ function BookForm() {
   const [scheduledAt, setScheduledAt] = useState<Date | null>(null);
   const [flexDateEnd, setFlexDateEnd] = useState<Date | null>(null);
   const [address, setAddress] = useState<ServiceAddress | null>(null);
-  const [bookingId, setBookingId] = useState<string | null>(null);
   const [clientSecret, setClientSecret] = useState<string | null>(null);
   const [confirmLoading, setConfirmLoading] = useState(false);
   const [confirmError, setConfirmError] = useState('');
@@ -513,8 +512,6 @@ function BookForm() {
         totalPrice: service.basePrice,
         stripePaymentIntentId: null,
       });
-      setBookingId(newBookingId);
-
       const idToken = await (user as { getIdToken?: () => Promise<string> }).getIdToken?.();
       const res = await fetch('/api/stripe/create-payment-intent', {
         method: 'POST',
