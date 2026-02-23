@@ -27,7 +27,7 @@ function getAdminApp(): App {
   });
 }
 
-const adminApp = getAdminApp();
+export const adminApp: App = getAdminApp();
 
 export const adminDb: Firestore = getFirestore(adminApp);
 export const adminAuth: Auth = getAuth(adminApp);

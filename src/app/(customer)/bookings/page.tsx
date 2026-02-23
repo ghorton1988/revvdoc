@@ -71,8 +71,13 @@ export default function BookingsPage() {
 
   useEffect(() => {
     if (!user) return;
+    console.log('[bookings] fetching for uid:', user.uid, '— field: customerId');
     getBookingsByCustomer(user.uid)
-      .then(setBookings)
+      .then((results) => {
+        console.log('[bookings] results:', results.length);
+        setBookings(results);
+      })
+      .catch((err) => console.error('[bookings] query error:', err))
       .finally(() => setLoading(false));
   }, [user]);
 

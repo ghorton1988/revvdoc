@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import { Inter } from 'next/font/google';
 import './globals.css';
+import { HudBackground } from '@/components/ui/HudBackground';
 
 const inter = Inter({
   subsets: ['latin'],
@@ -23,7 +24,7 @@ export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
   maximumScale: 1,   // Prevent zoom on mobile input focus
-  themeColor: '#0A0A0A',
+  themeColor: '#070E17',
 };
 
 export default function RootLayout({
@@ -34,6 +35,7 @@ export default function RootLayout({
   return (
     <html lang="en" className="dark">
       <body className={`${inter.variable} antialiased bg-surface-base text-text-primary`}>
+        <HudBackground />
         {children}
       </body>
     </html>

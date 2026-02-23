@@ -61,7 +61,7 @@ export default function AddVehiclePage() {
     setLoading(true);
 
     try {
-      await addVehicle({
+      const vehicleId = await addVehicle({
         ownerId: user.uid,
         vin: decoded.vin,
         make: decoded.make,
@@ -73,6 +73,23 @@ export default function AddVehiclePage() {
         lastServiceDate: null,
         photoUrl: null,
       });
+
+      // Fire-and-forget: seed NHTSA decode + recalls into the new vehicle doc.
+      // Non-blocking — user navigates away immediately; data is available on next load.
+      (async () => {
+        try {
+          const { getAuth } = await import('firebase/auth');
+          const idToken = await getAuth().currentUser?.getIdToken();
+          if (!idToken) return;
+          await fetch(
+            `/api/nhtsa/decode?vin=${encodeURIComponent(decoded.vin)}&vehicleId=${vehicleId}`,
+            { headers: { Authorization: `Bearer ${idToken}` } }
+          );
+        } catch (e) {
+          console.error('[AddVehicle] NHTSA seed error:', e);
+        }
+      })();
+
       router.push('/vehicles');
     } catch {
       setError('Failed to save vehicle. Please try again.');

@@ -294,14 +294,20 @@ export default function ActiveJobPage() {
 
           <div className="px-4 py-3">
             <p className="text-xs text-text-muted uppercase tracking-wider font-medium mb-2">Service Address</p>
-            <p className="text-sm text-text-primary">{booking.address.street}</p>
-            <p className="text-sm text-text-primary">
-              {booking.address.city}, {booking.address.state} {booking.address.zip}
-            </p>
+            {booking.address ? (
+              <>
+                <p className="text-sm text-text-primary">{booking.address.street}</p>
+                <p className="text-sm text-text-primary">
+                  {booking.address.city}, {booking.address.state} {booking.address.zip}
+                </p>
+              </>
+            ) : (
+              <p className="text-sm text-text-muted">Address pending</p>
+            )}
             <a
-              href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(
+              href={booking.address ? `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(
                 `${booking.address.street} ${booking.address.city} ${booking.address.state} ${booking.address.zip}`
-              )}`}
+              )}` : '#'}
               target="_blank"
               rel="noopener noreferrer"
               className="text-xs text-brand mt-1 inline-flex items-center gap-1"

@@ -87,7 +87,7 @@ export default function ServicesPage() {
 
 function ServiceCard({ service }: { service: Service }) {
   return (
-    <div className="bg-surface-raised rounded-2xl p-4 border border-surface-border space-y-3">
+    <div className="bg-surface-raised rounded-2xl p-4 border border-surface-border space-y-3 hover:-translate-y-0.5 hover:shadow-glow-sm hover:border-brand/30 transition-all duration-200">
       {/* Category badge + title row */}
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 space-y-1">
@@ -110,7 +110,7 @@ function ServiceCard({ service }: { service: Service }) {
       {/* Book CTA */}
       <Link
         href={`/book?serviceId=${service.serviceId}`}
-        className="block w-full text-center bg-brand hover:bg-brand-dark active:scale-[0.99] transition-all rounded-xl py-2.5 font-semibold text-surface-base text-sm"
+        className="block w-full text-center bg-brand hover:bg-brand-dark active:scale-[0.97] transition-all rounded-xl py-2.5 font-semibold text-surface-base text-sm"
       >
         Book Now
       </Link>

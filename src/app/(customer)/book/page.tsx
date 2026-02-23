@@ -2,20 +2,15 @@
 
 import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { loadStripe } from '@stripe/stripe-js';
-import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
 import { useAuth } from '@/hooks/useAuth';
 import { getAllActiveServices } from '@/services/serviceService';
 import { getVehiclesByOwner } from '@/services/vehicleService';
-import { createBooking } from '@/services/bookingService';
-import { formatPrice, formatDuration, formatDate } from '@/lib/formatters';
-import type { Service, Vehicle, ServiceAddress } from '@/types';
-
-const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY ?? '');
+import { formatPrice, formatDuration } from '@/lib/formatters';
+import type { Service, Vehicle, BookingTimeWindow } from '@/types';
 
 // ─── Step indicator ──────────────────────────────────────────────────────────
 
-const STEPS = ['Service', 'Vehicle', 'Date', 'Review', 'Pay'];
+const STEPS = ['Service', 'Vehicle', 'Schedule', 'Confirm'];
 
 function StepBar({ step }: { step: number }) {
   return (
@@ -208,47 +203,30 @@ function Step2Vehicle({ onSelect, userId }: { onSelect: (v: Vehicle) => void; us
   );
 }
 
-// ─── Step 3: Date + address ──────────────────────────────────────────────────
+// ─── Step 3: Schedule ────────────────────────────────────────────────────────
 
-interface DateAddressResult {
-  scheduledAt: Date;
-  flexDateEnd: Date | null;
-  address: ServiceAddress;
+const TIME_WINDOWS: { key: BookingTimeWindow; label: string; range: string }[] = [
+  { key: 'morning',   label: 'Morning',   range: '8 AM – 12 PM' },
+  { key: 'afternoon', label: 'Afternoon', range: '12 PM – 5 PM' },
+  { key: 'evening',   label: 'Evening',   range: '5 PM – 8 PM' },
+];
+
+interface ScheduleResult {
+  scheduledDate: string;            // YYYY-MM-DD
+  scheduledTimeWindow: BookingTimeWindow;
 }
 
-function Step3DateAddress({ onNext }: { onNext: (v: DateAddressResult) => void }) {
+function Step3Schedule({ onNext }: { onNext: (v: ScheduleResult) => void }) {
   const todayStr = new Date().toISOString().split('T')[0];
   const [date, setDate] = useState('');
-  const [time, setTime] = useState('09:00');
-  const [flexEnd, setFlexEnd] = useState('');
-  const [street, setStreet] = useState('');
-  const [city, setCity] = useState('');
-  const [stateVal, setStateVal] = useState('');
-  const [zip, setZip] = useState('');
+  const [timeWindow, setTimeWindow] = useState<BookingTimeWindow | null>(null);
   const [error, setError] = useState('');
 
   function handleNext() {
-    if (!date || !street || !city || !stateVal || !zip) {
-      setError('Please fill in all required fields.');
-      return;
-    }
-    const [h, m] = time.split(':').map(Number);
-    const scheduled = new Date(`${date}T00:00:00`);
-    scheduled.setHours(h, m, 0, 0);
-    if (scheduled < new Date()) {
-      setError('Please choose a future date and time.');
-      return;
-    }
-    const flexEndDate = flexEnd ? new Date(`${flexEnd}T23:59:59`) : null;
-    if (flexEndDate && flexEndDate < scheduled) {
-      setError('Flexible end date must be after the start date.');
-      return;
-    }
-    onNext({
-      scheduledAt: scheduled,
-      flexDateEnd: flexEndDate,
-      address: { street, city, state: stateVal, zip, lat: 0, lng: 0 },
-    });
+    if (!date) { setError('Please select a date.'); return; }
+    if (!timeWindow) { setError('Please select a time window.'); return; }
+    if (date < todayStr) { setError('Please choose a future date.'); return; }
+    onNext({ scheduledDate: date, scheduledTimeWindow: timeWindow });
   }
 
   const inputCls =
@@ -257,48 +235,38 @@ function Step3DateAddress({ onNext }: { onNext: (v: DateAddressResult) => void }
   return (
     <div className="p-4 space-y-5">
       <div>
-        <h2 className="text-lg font-semibold text-text-primary">Date & Location</h2>
-        <p className="text-sm text-text-muted mt-0.5">When and where should we come?</p>
+        <h2 className="text-lg font-semibold text-text-primary">Pick a Date & Time</h2>
+        <p className="text-sm text-text-muted mt-0.5">When would you like service?</p>
       </div>
 
-      <div className="space-y-3">
-        <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider">Schedule</p>
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="block text-xs text-text-muted mb-1">Preferred Date *</label>
-            <input type="date" min={todayStr} value={date} onChange={(e) => setDate(e.target.value)} className={inputCls} />
-          </div>
-          <div>
-            <label className="block text-xs text-text-muted mb-1">Time *</label>
-            <input type="time" value={time} onChange={(e) => setTime(e.target.value)} className={inputCls} />
-          </div>
-        </div>
-        <div>
-          <label className="block text-xs text-text-muted mb-1">Flexible Until (optional)</label>
-          <input type="date" min={date || todayStr} value={flexEnd} onChange={(e) => setFlexEnd(e.target.value)} className={inputCls} />
-          <p className="text-xs text-text-muted mt-1">Allow the tech to schedule within a date range</p>
-        </div>
+      <div className="space-y-2">
+        <label className="block text-xs text-text-muted">Preferred Date *</label>
+        <input
+          type="date"
+          min={todayStr}
+          value={date}
+          onChange={(e) => { setDate(e.target.value); setError(''); }}
+          className={inputCls}
+        />
       </div>
 
-      <div className="space-y-3">
-        <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider">Service Address</p>
-        <div>
-          <label className="block text-xs text-text-muted mb-1">Street *</label>
-          <input type="text" placeholder="123 Main St" value={street} onChange={(e) => setStreet(e.target.value)} className={inputCls} />
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="block text-xs text-text-muted mb-1">City *</label>
-            <input type="text" placeholder="Austin" value={city} onChange={(e) => setCity(e.target.value)} className={inputCls} />
-          </div>
-          <div>
-            <label className="block text-xs text-text-muted mb-1">State *</label>
-            <input type="text" placeholder="TX" maxLength={2} value={stateVal} onChange={(e) => setStateVal(e.target.value.toUpperCase())} className={inputCls} />
-          </div>
-        </div>
-        <div>
-          <label className="block text-xs text-text-muted mb-1">ZIP *</label>
-          <input type="text" inputMode="numeric" placeholder="78701" maxLength={5} value={zip} onChange={(e) => setZip(e.target.value.replace(/\D/g, ''))} className={inputCls} />
+      <div className="space-y-2">
+        <p className="text-xs text-text-muted">Preferred Time Window *</p>
+        <div className="grid grid-cols-3 gap-2">
+          {TIME_WINDOWS.map(({ key, label, range }) => (
+            <button
+              key={key}
+              onClick={() => { setTimeWindow(key); setError(''); }}
+              className={`flex flex-col items-center py-3 px-2 rounded-xl border transition-colors ${
+                timeWindow === key
+                  ? 'bg-brand/15 border-brand text-brand'
+                  : 'bg-surface-raised border-surface-border text-text-muted hover:border-brand/40'
+              }`}
+            >
+              <span className="text-sm font-semibold">{label}</span>
+              <span className="text-[10px] mt-0.5 opacity-80">{range}</span>
+            </button>
+          ))}
         </div>
       </div>
 
@@ -311,40 +279,48 @@ function Step3DateAddress({ onNext }: { onNext: (v: DateAddressResult) => void }
   );
 }
 
-// ─── Step 4: Review ──────────────────────────────────────────────────────────
+// ─── Step 4: Confirm (with notes) ────────────────────────────────────────────
 
-function Step4Review({
+function Step4Confirm({
   service,
   vehicle,
-  scheduledAt,
-  flexDateEnd,
-  address,
+  scheduledDate,
+  scheduledTimeWindow,
   onConfirm,
   loading,
   error,
 }: {
   service: Service;
   vehicle: Vehicle;
-  scheduledAt: Date;
-  flexDateEnd: Date | null;
-  address: ServiceAddress;
-  onConfirm: () => void;
+  scheduledDate: string;
+  scheduledTimeWindow: BookingTimeWindow;
+  onConfirm: (notes: string) => void;
   loading: boolean;
   error: string;
 }) {
+  const [notes, setNotes] = useState('');
+
+  /** Format "2026-03-15" → "Mar 15, 2026" without timezone shift. */
+  function formatLocalDate(dateStr: string): string {
+    const [y, m, d] = dateStr.split('-').map(Number);
+    return new Date(y, m - 1, d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  }
+
+  const windowLabel = TIME_WINDOWS.find((w) => w.key === scheduledTimeWindow)?.label ?? scheduledTimeWindow;
+
   const rows = [
-    { label: 'Service', value: service.name },
-    { label: 'Vehicle', value: `${vehicle.year} ${vehicle.make} ${vehicle.model}${vehicle.nickname ? ` (${vehicle.nickname})` : ''}` },
-    { label: 'Date', value: flexDateEnd ? `${formatDate(scheduledAt)} – ${formatDate(flexDateEnd)}` : formatDate(scheduledAt) },
-    { label: 'Address', value: `${address.street}, ${address.city}, ${address.state} ${address.zip}` },
+    { label: 'Service',  value: service.name },
+    { label: 'Vehicle',  value: `${vehicle.year} ${vehicle.make} ${vehicle.model}${vehicle.nickname ? ` (${vehicle.nickname})` : ''}` },
+    { label: 'Date',     value: formatLocalDate(scheduledDate) },
+    { label: 'Window',   value: `${windowLabel} (${TIME_WINDOWS.find((w) => w.key === scheduledTimeWindow)?.range})` },
     { label: 'Duration', value: formatDuration(service.durationMins) },
   ];
 
   return (
     <div className="p-4 space-y-5">
       <div>
-        <h2 className="text-lg font-semibold text-text-primary">Review Your Booking</h2>
-        <p className="text-sm text-text-muted mt-0.5">Confirm the details below.</p>
+        <h2 className="text-lg font-semibold text-text-primary">Confirm Booking</h2>
+        <p className="text-sm text-text-muted mt-0.5">Review your details and add any notes.</p>
       </div>
 
       <div className="bg-surface-raised border border-surface-border rounded-xl divide-y divide-surface-border">
@@ -357,12 +333,25 @@ function Step4Review({
       </div>
 
       <div className="bg-brand/10 border border-brand/30 rounded-xl px-4 py-3 flex items-center justify-between">
-        <span className="text-sm font-medium text-text-primary">Total</span>
+        <span className="text-sm font-medium text-text-primary">Estimated Total</span>
         <span className="text-xl font-bold text-brand">{formatPrice(service.basePrice)}</span>
       </div>
 
+      <div className="space-y-1.5">
+        <label className="block text-xs text-text-muted">Notes for the Technician (optional)</label>
+        <textarea
+          rows={3}
+          maxLength={500}
+          placeholder="E.g. gate code, parking instructions, specific concerns…"
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+          className="w-full bg-surface-raised border border-surface-border rounded-lg px-3 py-2 text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-brand resize-none"
+        />
+        <p className="text-[10px] text-text-muted text-right">{notes.length}/500</p>
+      </div>
+
       <p className="text-xs text-text-muted text-center">
-        Your card will be pre-authorized but not charged until the service is complete.
+        Payment is collected after the service is complete.
       </p>
 
       {error && (
@@ -372,7 +361,7 @@ function Step4Review({
       )}
 
       <button
-        onClick={onConfirm}
+        onClick={() => onConfirm(notes)}
         disabled={loading}
         className="w-full py-3 bg-brand text-surface-base rounded-xl font-semibold disabled:opacity-60 flex items-center justify-center gap-2"
       >
@@ -382,80 +371,43 @@ function Step4Review({
               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
             </svg>
-            Setting up payment…
+            Booking…
           </>
         ) : (
-          'Confirm & Pay'
+          'Request Service'
         )}
       </button>
     </div>
   );
 }
 
-// ─── Step 5: Stripe Elements ──────────────────────────────────────────────────
+// ─── Success screen ───────────────────────────────────────────────────────────
 
-function PaymentForm() {
-  const stripe = useStripe();
-  const elements = useElements();
-  const router = useRouter();
-  const [error, setError] = useState('');
-  const [submitting, setSubmitting] = useState(false);
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!stripe || !elements) return;
-    setSubmitting(true);
-    setError('');
-
-    const result = await stripe.confirmPayment({
-      elements,
-      confirmParams: { return_url: `${window.location.origin}/bookings` },
-      redirect: 'if_required',
-    });
-
-    if (result.error) {
-      setError(result.error.message ?? 'Payment failed. Please try again.');
-      setSubmitting(false);
-    } else {
-      router.push('/bookings');
-    }
-  }
-
+function SuccessScreen({ bookingId, onViewBookings }: { bookingId: string; onViewBookings: () => void }) {
   return (
-    <div className="p-4 space-y-5">
+    <div className="flex flex-col items-center justify-center min-h-[60vh] p-8 text-center space-y-5">
+      <div className="w-16 h-16 rounded-full bg-green-500/15 flex items-center justify-center">
+        <svg className="text-green-400" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M22 11.08V12a10 10 0 11-5.93-9.14" />
+          <polyline points="22 4 12 14.01 9 11.01" />
+        </svg>
+      </div>
       <div>
-        <h2 className="text-lg font-semibold text-text-primary">Payment</h2>
-        <p className="text-sm text-text-muted mt-0.5">
-          Pre-authorization only &mdash; you won&apos;t be charged until service is complete.
+        <h2 className="text-xl font-bold text-text-primary">Booking Requested!</h2>
+        <p className="text-sm text-text-muted mt-2">
+          We&apos;ll match you with a technician and confirm your appointment shortly.
         </p>
       </div>
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <div className="bg-surface-raised border border-surface-border rounded-xl p-4">
-          <PaymentElement options={{ layout: 'tabs' }} />
-        </div>
-        {error && (
-          <p className="text-status-fault text-sm bg-status-fault/10 border border-status-fault/30 rounded-lg px-3 py-2">
-            {error}
-          </p>
-        )}
-        <button
-          type="submit"
-          disabled={!stripe || submitting}
-          className="w-full py-3 bg-brand text-surface-base rounded-xl font-semibold disabled:opacity-60 flex items-center justify-center gap-2"
-        >
-          {submitting ? (
-            <>
-              <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-              </svg>
-              Processing…
-            </>
-          ) : (
-            'Authorize Payment'
-          )}
-        </button>
-      </form>
+      <div className="w-full bg-surface-raised border border-surface-border rounded-xl px-4 py-3 text-left space-y-1">
+        <p className="text-xs text-text-muted">Booking ID</p>
+        <p className="text-sm font-mono text-text-primary">{bookingId}</p>
+      </div>
+      <button
+        onClick={onViewBookings}
+        className="w-full py-3 bg-brand text-surface-base rounded-xl font-semibold"
+      >
+        View My Bookings
+      </button>
     </div>
   );
 }
@@ -468,68 +420,57 @@ function BookForm() {
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
 
-  const [step, setStep] = useState<1 | 2 | 3 | 4 | 5>(1);
+  const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
   const [service, setService] = useState<Service | null>(null);
   const [vehicle, setVehicle] = useState<Vehicle | null>(null);
-  const [scheduledAt, setScheduledAt] = useState<Date | null>(null);
-  const [flexDateEnd, setFlexDateEnd] = useState<Date | null>(null);
-  const [address, setAddress] = useState<ServiceAddress | null>(null);
-  const [clientSecret, setClientSecret] = useState<string | null>(null);
+  const [scheduledDate, setScheduledDate] = useState('');
+  const [scheduledTimeWindow, setScheduledTimeWindow] = useState<BookingTimeWindow | null>(null);
   const [confirmLoading, setConfirmLoading] = useState(false);
   const [confirmError, setConfirmError] = useState('');
+  const [createdBookingId, setCreatedBookingId] = useState<string | null>(null);
 
-  async function handleConfirm() {
-    if (!user || !service || !vehicle || !scheduledAt || !address) return;
+  async function handleConfirm(notes: string) {
+    if (!user || !service || !vehicle || !scheduledDate || !scheduledTimeWindow) return;
     setConfirmLoading(true);
     setConfirmError('');
 
     try {
-      const newBookingId = await createBooking({
-        customerId: user.uid,
-        technicianId: null,
-        vehicleId: vehicle.vehicleId,
-        serviceId: service.serviceId,
-        serviceSnapshot: {
-          serviceId: service.serviceId,
-          name: service.name,
-          category: service.category,
-          basePrice: service.basePrice,
-          durationMins: service.durationMins,
-        },
-        vehicleSnapshot: {
-          vehicleId: vehicle.vehicleId,
-          vin: vehicle.vin,
-          make: vehicle.make,
-          model: vehicle.model,
-          year: vehicle.year,
-          nickname: vehicle.nickname,
-          mileage: vehicle.mileage,
-        },
-        scheduledAt,
-        flexDateEnd,
-        status: 'pending',
-        address,
-        totalPrice: service.basePrice,
-        stripePaymentIntentId: null,
-      });
-      const idToken = await (user as { getIdToken?: () => Promise<string> }).getIdToken?.();
-      const res = await fetch('/api/stripe/create-payment-intent', {
+      const { getAuth } = await import('firebase/auth');
+      const firebaseUser = getAuth().currentUser;
+      if (!firebaseUser) throw new Error('User not authenticated');
+      const token = await firebaseUser.getIdToken();
+
+      const res = await fetch('/api/bookings/create', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...(idToken ? { Authorization: `Bearer ${idToken}` } : {}),
+          Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ bookingId: newBookingId, amountCents: service.basePrice }),
+        body: JSON.stringify({
+          userId:              user.uid,
+          vehicleId:           vehicle.vehicleId,
+          serviceId:           service.serviceId,
+          scheduledDate,
+          scheduledTimeWindow,
+          notes:               notes || undefined,
+          source:              initialServiceId ? 'manual' : 'manual',
+        }),
       });
 
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error ?? 'Failed to create payment intent');
+      const text = await res.text();
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch {
+        console.error('BOOKING RAW RESPONSE:', text);
+        throw new Error('Server returned non-JSON response: ' + text);
       }
 
-      const { clientSecret: cs } = await res.json();
-      setClientSecret(cs);
-      setStep(5);
+      if (!res.ok) {
+        throw new Error(data?.message || data?.error || 'Booking failed');
+      }
+
+      setCreatedBookingId(data.bookingId);
     } catch (err: unknown) {
       setConfirmError(err instanceof Error ? err.message : 'Something went wrong');
     } finally {
@@ -552,12 +493,16 @@ function BookForm() {
     return null;
   }
 
+  if (createdBookingId) {
+    return <SuccessScreen bookingId={createdBookingId} onViewBookings={() => router.push('/bookings')} />;
+  }
+
   return (
     <div>
       {/* Sub-header with back button + step bar */}
       <div className="sticky top-14 z-30 bg-surface-base border-b border-surface-border">
         <div className="flex items-center gap-3 px-4 h-11">
-          {step > 1 && step < 5 && (
+          {step > 1 && (
             <button
               onClick={() => setStep((s) => (s - 1) as typeof step)}
               className="text-text-secondary -ml-1"
@@ -587,47 +532,25 @@ function BookForm() {
       )}
 
       {step === 3 && (
-        <Step3DateAddress
-          onNext={({ scheduledAt: sa, flexDateEnd: fe, address: addr }) => {
-            setScheduledAt(sa);
-            setFlexDateEnd(fe);
-            setAddress(addr);
+        <Step3Schedule
+          onNext={({ scheduledDate: d, scheduledTimeWindow: tw }) => {
+            setScheduledDate(d);
+            setScheduledTimeWindow(tw);
             setStep(4);
           }}
         />
       )}
 
-      {step === 4 && service && vehicle && scheduledAt && address && (
-        <Step4Review
+      {step === 4 && service && vehicle && scheduledDate && scheduledTimeWindow && (
+        <Step4Confirm
           service={service}
           vehicle={vehicle}
-          scheduledAt={scheduledAt}
-          flexDateEnd={flexDateEnd}
-          address={address}
+          scheduledDate={scheduledDate}
+          scheduledTimeWindow={scheduledTimeWindow}
           onConfirm={handleConfirm}
           loading={confirmLoading}
           error={confirmError}
         />
-      )}
-
-      {step === 5 && clientSecret && (
-        <Elements
-          stripe={stripePromise}
-          options={{
-            clientSecret,
-            appearance: {
-              theme: 'night',
-              variables: {
-                colorPrimary: '#D4A843',
-                colorBackground: '#141414',
-                colorText: '#E5E5E5',
-                borderRadius: '8px',
-              },
-            },
-          }}
-        >
-          <PaymentForm />
-        </Elements>
       )}
     </div>
   );

@@ -2,15 +2,19 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ── CSS Variables ─────────────────────────────────────────────────────────── */
 /* RevvDoc is dark-first — no light mode toggle in MVP */
 :root {
-  --background: #0A0A0A;
-  --foreground: #FFFFFF;
-  --surface-raised: #141414;
-  --surface-overlay: #1E1E1E;
-  --surface-border: #2A2A2A;
-  --brand: #D4A843;
-  --brand-light: #E8C567;
+  --background:       #070E17;
+  --foreground:       #FFFFFF;
+  --surface-raised:   #0E1B28;
+  --surface-overlay:  #162436;
+  --surface-border:   #1E3347;
+  --brand:            #00E5B4;
+  --brand-light:      #33ECC3;
+  --brand-dark:       #00B891;
+  --glow-color:       rgba(0, 229, 180, 0.28);
+  --glow-color-sm:    rgba(0, 229, 180, 0.15);
 }
 
 html {
@@ -19,33 +23,109 @@ html {
 
 body {
   color: var(--foreground);
-  background: var(--background);
+  /* Dark navy base with a subtle teal radial glow bleeding from the top */
+  background:
+    radial-gradient(ellipse at 50% -15%, rgba(0, 229, 180, 0.07) 0%, transparent 60%),
+    var(--background);
   font-family: var(--font-inter), system-ui, -apple-system, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  /* Prevent horizontal scroll on mobile */
   overflow-x: hidden;
-  /* Mobile viewport height fix */
   min-height: 100svh;
 }
 
-/* Scrollbar styling for dark theme */
-::-webkit-scrollbar { width: 4px; height: 4px; }
-::-webkit-scrollbar-track { background: var(--surface-raised); }
-::-webkit-scrollbar-thumb { background: var(--surface-border); border-radius: 2px; }
+/* ── Scrollbar ─────────────────────────────────────────────────────────────── */
+::-webkit-scrollbar          { width: 4px; height: 4px; }
+::-webkit-scrollbar-track    { background: var(--surface-raised); }
+::-webkit-scrollbar-thumb    { background: var(--surface-border); border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: var(--brand-dark); }
 
+/* ── Brand button — hover glow ─────────────────────────────────────────────── */
+/* Applied globally to any element with bg-brand so pages don't need changes */
+.bg-brand {
+  transition: filter 0.2s ease, box-shadow 0.2s ease, transform 0.15s ease;
+}
+.bg-brand:hover {
+  filter: brightness(1.08);
+  box-shadow: 0 0 22px rgba(0, 229, 180, 0.35);
+}
+.bg-brand:active {
+  transform: scale(0.98);
+  filter: brightness(0.95);
+  box-shadow: none;
+}
+
+/* ── Stagger animation delays ──────────────────────────────────────────────── */
+/* Combine with animate-fade-up on sibling elements for sequential entry. */
+.stagger-1 { animation-delay: 60ms; }
+.stagger-2 { animation-delay: 120ms; }
+.stagger-3 { animation-delay: 200ms; }
+.stagger-4 { animation-delay: 280ms; }
+
+/* ── Reduced motion — override all animations to instant ───────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    animation-delay: 0ms !important;
+  }
+}
+
+/* ── Utilities ─────────────────────────────────────────────────────────────── */
 @layer utilities {
-  .text-balance { text-wrap: balance; }
-
   /* Safe area padding for mobile notches / home indicators */
   .pb-safe { padding-bottom: env(safe-area-inset-bottom); }
   .pt-safe { padding-top: env(safe-area-inset-top); }
 
-  /* Gold gradient text (used in branding) */
+  /* Hide scrollbar but keep scroll functionality */
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .scrollbar-hide::-webkit-scrollbar { display: none; }
+
+  /* Teal gradient text (branding / logo) */
   .text-brand-gradient {
-    background: linear-gradient(135deg, #E8C567, #D4A843, #A8832F);
+    background: linear-gradient(135deg, #33ECC3, #00E5B4, #00B891);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
+  }
+
+  /* Loading shimmer — replaces animate-pulse for skeleton states */
+  .shimmer {
+    background: linear-gradient(
+      90deg,
+      var(--surface-raised) 25%,
+      var(--surface-border) 50%,
+      var(--surface-raised) 75%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 1.5s linear infinite;
+  }
+
+  /* Teal glow box-shadow utility (for active cards, focused inputs, etc.) */
+  .glow {
+    box-shadow: 0 0 20px rgba(0, 229, 180, 0.28);
+  }
+  .glow-sm {
+    box-shadow: 0 0 10px rgba(0, 229, 180, 0.18);
+  }
+
+  /* Text balance for headings */
+  .text-balance { text-wrap: balance; }
+}
+
+/* ── Component layer ───────────────────────────────────────────────────────── */
+@layer components {
+  /* Teal-outlined input focus ring */
+  input:focus,
+  select:focus,
+  textarea:focus {
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(0, 229, 180, 0.35);
   }
 }

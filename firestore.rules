@@ -188,5 +188,122 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    // ── FCM TOKENS (subcollection of users) — Wave 1 ────────────────────────
+    // Stored under users/{uid}/fcmTokens/{tokenId}.
+    // Users manage their own tokens only; admin has full access for cleanup.
+
+    match /users/{uid}/fcmTokens/{tokenId} {
+      allow read, write: if isOwner(uid) || isAdmin();
+    }
+
+    // ── VEHICLE HEALTH SNAPSHOTS — Wave 1 ───────────────────────────────────
+    // vehicleHealth/{vehicleId} — document ID matches vehicleId.
+    // Written server-side only (Admin SDK via /api/maintenance/recompute).
+    // Owner reads their own vehicle's snapshot; admin full access.
+
+    match /vehicleHealth/{vehicleId} {
+      allow read: if isAdmin()
+        || (isSignedIn() && resource.data.ownerId == request.auth.uid);
+      // All writes via Admin SDK — no client write
+      allow write: if isAdmin();
+    }
+
+    // ── VEHICLE METADATA (shared make/model/year cache) — Wave 1 ────────────
+    // vehicleMetadata/{key} — shared across all vehicles of the same type.
+    // Any signed-in user may read (recall info is not sensitive).
+    // Writes via Admin SDK only.
+
+    match /vehicleMetadata/{key} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // ── MAINTENANCE SCHEDULES — Wave 1 ──────────────────────────────────────
+    // maintenanceSchedules/{scheduleId}
+    // Customers own and manage their own schedules.
+    // Immutable fields (ownerId, vehicleId, createdAt) cannot be changed on update.
+
+    match /maintenanceSchedules/{scheduleId} {
+      allow read: if isAdmin()
+        || (isSignedIn() && resource.data.ownerId == request.auth.uid);
+
+      allow create: if isSignedIn()
+        && request.resource.data.ownerId == request.auth.uid;
+
+      allow update: if isAdmin()
+        || (isSignedIn()
+            && resource.data.ownerId == request.auth.uid
+            && !request.resource.data.diff(resource.data).affectedKeys()
+                .hasAny(['ownerId', 'vehicleId', 'createdAt']));
+
+      allow delete: if isAdmin()
+        || (isSignedIn() && resource.data.ownerId == request.auth.uid);
+    }
+
+    // ── SUBSCRIPTION PLANS (catalog) — Wave 1 ───────────────────────────────
+    // subscriptionPlans/{planId} — admin-managed catalog, any auth user may browse.
+
+    match /subscriptionPlans/{planId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // ── CUSTOMER SUBSCRIPTIONS — Wave 1 ─────────────────────────────────────
+    // subscriptions/{subscriptionId}
+    // All writes via Admin SDK Route Handlers — prevents client-side entitlement tampering.
+
+    match /subscriptions/{subscriptionId} {
+      allow read: if isAdmin()
+        || (isSignedIn() && resource.data.customerId == request.auth.uid);
+      // All writes via Admin SDK only
+      allow write: if isAdmin();
+    }
+
+    // ── SYMPTOM REPORTS — Wave 1 ─────────────────────────────────────────────
+    // symptomReports/{reportId} — customers create and own their own reports.
+    // Limited update: only description, symptoms, and status fields (no fraud vectors).
+
+    match /symptomReports/{reportId} {
+      allow read: if isAdmin()
+        || (isSignedIn() && resource.data.customerId == request.auth.uid);
+
+      allow create: if isSignedIn()
+        && request.resource.data.customerId == request.auth.uid;
+
+      allow update: if isAdmin()
+        || (isSignedIn()
+            && resource.data.customerId == request.auth.uid
+            && onlyUpdates(['description', 'symptoms', 'status']));
+
+      allow delete: if isAdmin();
+    }
+
+    // ── SERVICE CHAT MESSAGES (subcollection of bookings) — Wave 1 ──────────
+    // bookings/{bookingId}/messages/{messageId}
+    //
+    // LOCK RULE: writes are only permitted when bookingStatus (denormalized
+    // onto the message payload by chatService.sendMessage) is 'accepted',
+    // 'en_route', or 'in_progress'. This avoids a cross-document get() call
+    // on the parent booking, which would cost 1 read per rule evaluation.
+    //
+    // READ: only the customer and assigned technician for this booking.
+    // UPDATE / DELETE: admin only — messages are immutable from client.
+
+    match /bookings/{bookingId}/messages/{messageId} {
+      allow read: if isSignedIn() && (
+        request.auth.uid == resource.data.customerId
+        || request.auth.uid == resource.data.technicianId
+      );
+
+      allow create: if isSignedIn()
+        && (request.auth.uid == request.resource.data.customerId
+            || request.auth.uid == request.resource.data.technicianId)
+        && request.resource.data.senderId == request.auth.uid
+        && request.resource.data.bookingStatus in ['accepted', 'en_route', 'in_progress'];
+
+      // Messages are immutable from the client
+      allow update, delete: if isAdmin();
+    }
+
   }
 }

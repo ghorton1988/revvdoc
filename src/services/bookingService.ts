@@ -24,6 +24,15 @@ import type { Booking, BookingStatus } from '@/types';
 
 const BOOKINGS = 'bookings';
 
+/** Safely converts a Firestore Timestamp (or plain Date) to a JS Date. */
+function toDate(value: unknown): Date {
+  if (!value) return new Date(0);
+  if (typeof (value as { toDate?: unknown }).toDate === 'function') {
+    return (value as { toDate(): Date }).toDate();
+  }
+  return value instanceof Date ? value : new Date(0);
+}
+
 function mapBooking(id: string, data: Record<string, unknown>): Booking {
   return {
     bookingId: id,
@@ -33,15 +42,13 @@ function mapBooking(id: string, data: Record<string, unknown>): Booking {
     serviceId: data.serviceId as string,
     serviceSnapshot: data.serviceSnapshot as Booking['serviceSnapshot'],
     vehicleSnapshot: data.vehicleSnapshot as Booking['vehicleSnapshot'],
-    scheduledAt: (data.scheduledAt as { toDate(): Date }).toDate(),
-    flexDateEnd: data.flexDateEnd
-      ? (data.flexDateEnd as { toDate(): Date }).toDate()
-      : null,
+    scheduledAt: toDate(data.scheduledAt),
+    flexDateEnd: data.flexDateEnd ? toDate(data.flexDateEnd) : null,
     status: data.status as BookingStatus,
     address: data.address as Booking['address'],
-    totalPrice: data.totalPrice as number,
+    totalPrice: (data.totalPrice as number) ?? 0,
     stripePaymentIntentId: (data.stripePaymentIntentId as string | null) ?? null,
-    createdAt: (data.createdAt as { toDate(): Date }).toDate(),
+    createdAt: toDate(data.createdAt),
   };
 }
 
@@ -60,13 +67,15 @@ export async function createBooking(
 export async function getBookingsByCustomer(
   customerId: string
 ): Promise<Booking[]> {
+  // No orderBy — avoids requiring a composite index that may not be deployed yet.
+  // Results are sorted client-side by createdAt DESC.
   const q = query(
     collection(db, BOOKINGS),
-    where('customerId', '==', customerId),
-    orderBy('createdAt', 'desc')
+    where('customerId', '==', customerId)
   );
   const snap = await getDocs(q);
-  return snap.docs.map((d) => mapBooking(d.id, d.data() as Record<string, unknown>));
+  const bookings = snap.docs.map((d) => mapBooking(d.id, d.data() as Record<string, unknown>));
+  return bookings.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
 }
 
 export function listenToBooking(
@@ -165,6 +174,49 @@ export async function getTechnicianBookings(
   const constraints = [where('technicianId', '==', technicianId)];
   if (status) constraints.push(where('status', '==', status));
   const q = query(collection(db, BOOKINGS), ...constraints, orderBy('scheduledAt', 'asc'));
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => mapBooking(d.id, d.data() as Record<string, unknown>));
+}
+
+// ── UPCOMING BOOKING HELPERS ──────────────────────────────────────────────────
+
+/**
+ * Returns upcoming (pending or accepted) bookings for a specific vehicle.
+ * Queries by customerId (indexed), filters vehicleId client-side to avoid
+ * requiring an additional composite index in MVP.
+ * Sorted by scheduledAt ASC.
+ */
+export async function getUpcomingBookingsForVehicle(
+  customerId: string,
+  vehicleId: string
+): Promise<Booking[]> {
+  const q = query(
+    collection(db, BOOKINGS),
+    where('customerId', '==', customerId),
+    where('status', 'in', ['pending', 'accepted']),
+    orderBy('scheduledAt', 'asc'),
+    limit(20)
+  );
+  const snap = await getDocs(q);
+  return snap.docs
+    .map((d) => mapBooking(d.id, d.data() as Record<string, unknown>))
+    .filter((b) => b.vehicleId === vehicleId);
+}
+
+/**
+ * Returns all upcoming (pending or accepted) bookings for a customer, across
+ * all vehicles. Sorted by scheduledAt ASC. Limit 5 for dashboard tile.
+ */
+export async function getUpcomingBookingsForCustomer(
+  customerId: string
+): Promise<Booking[]> {
+  const q = query(
+    collection(db, BOOKINGS),
+    where('customerId', '==', customerId),
+    where('status', 'in', ['pending', 'accepted']),
+    orderBy('scheduledAt', 'asc'),
+    limit(5)
+  );
   const snap = await getDocs(q);
   return snap.docs.map((d) => mapBooking(d.id, d.data() as Record<string, unknown>));
 }

@@ -115,8 +115,8 @@ export default function LiveJobPage() {
   const isComplete = job.currentStage === 'complete';
   const techLat = job.techLocation?.lat ?? null;
   const techLng = job.techLocation?.lng ?? null;
-  const destLat = booking?.address.lat ?? 0;
-  const destLng = booking?.address.lng ?? 0;
+  const destLat = booking?.address?.lat ?? 0;
+  const destLng = booking?.address?.lng ?? 0;
 
   return (
     <div className="flex flex-col h-[calc(100vh-7rem)]">

@@ -4,9 +4,11 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
+import { useChat } from '@/hooks/useChat';
 import { listenToBooking, cancelBooking } from '@/services/bookingService';
 import { getJobByBookingId } from '@/services/jobService';
 import { formatDate, formatPrice, formatDuration } from '@/lib/formatters';
+import { BookingChatPanel } from '@/components/booking/BookingChatPanel';
 import type { Booking, BookingStatus } from '@/types';
 
 const STATUS_STYLES: Record<BookingStatus, { label: string; cls: string }> = {
@@ -20,7 +22,7 @@ const STATUS_STYLES: Record<BookingStatus, { label: string; cls: string }> = {
 
 export default function BookingDetailPage() {
   const { bookingId } = useParams<{ bookingId: string }>();
-  useAuth();
+  const { user } = useAuth();
   const router = useRouter();
 
   const [booking, setBooking] = useState<Booking | null>(null);
@@ -28,6 +30,9 @@ export default function BookingDetailPage() {
   const [loading, setLoading] = useState(true);
   const [cancelling, setCancelling] = useState(false);
   const [cancelError, setCancelError] = useState('');
+
+  // Chat — derives state from booking.status, listens to live messages
+  const { messages, chatState, send, sending } = useChat(booking);
 
   useEffect(() => {
     const unsub = listenToBooking(bookingId, (b) => {
@@ -98,10 +103,12 @@ export default function BookingDetailPage() {
       value: `${booking.vehicleSnapshot.year} ${booking.vehicleSnapshot.make} ${booking.vehicleSnapshot.model}${booking.vehicleSnapshot.nickname ? ` (${booking.vehicleSnapshot.nickname})` : ''}`,
     },
     { label: 'Date', value: formatDate(booking.scheduledAt) },
-    {
-      label: 'Address',
-      value: `${booking.address.street}, ${booking.address.city}, ${booking.address.state} ${booking.address.zip}`,
-    },
+    ...(booking.address
+      ? [{
+          label: 'Address',
+          value: `${booking.address.street}, ${booking.address.city}, ${booking.address.state} ${booking.address.zip}`,
+        }]
+      : []),
     { label: 'Duration', value: formatDuration(booking.serviceSnapshot.durationMins) },
     { label: 'Category', value: booking.serviceSnapshot.category },
   ];
@@ -190,6 +197,17 @@ export default function BookingDetailPage() {
             Cancellation is free before a technician is assigned.
           </p>
         </div>
+      )}
+
+      {/* Service Chat */}
+      {user && (
+        <BookingChatPanel
+          messages={messages}
+          chatState={chatState}
+          currentUserId={user.uid}
+          onSend={send}
+          sending={sending}
+        />
       )}
 
       {/* Booking ID (for support) */}

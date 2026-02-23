@@ -21,10 +21,11 @@ import { NextResponse, type NextRequest } from 'next/server';
 
 // Routes accessible without authentication
 const PUBLIC_PATHS = [
+  '/',               // Landing page — shows sign-in CTA if not authed
   '/sign-in',
   '/sign-up',
   '/verify-phone',
-  '/',               // Landing page — shows sign-in CTA if not authed
+  '/onboarding',     // First-run carousel (localStorage-gated client-side)
 ];
 
 // Route prefixes and the role required to access them

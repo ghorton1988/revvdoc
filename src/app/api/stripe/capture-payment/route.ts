@@ -13,6 +13,7 @@ import { z } from 'zod';
 import { FieldValue } from 'firebase-admin/firestore';
 import { adminDb, adminAuth } from '@/lib/firebase/firebaseAdmin';
 import stripe from '@/lib/stripe/stripe';
+import { recomputeVehicleHealth } from '@/lib/maintenance/recompute';
 
 export const runtime = 'nodejs';
 
@@ -129,7 +130,12 @@ export async function POST(request: Request) {
     });
   }
 
-  // 6. Create notification for customer (non-critical, outside transaction)
+  // 6. Recompute vehicle maintenance health (non-critical, fire-and-forget)
+  recomputeVehicleHealth(vehicleId).catch((err) =>
+    console.error('[capture-payment] recompute error:', err)
+  );
+
+  // 7. Create notification for customer (non-critical, outside transaction)
   try {
     await adminDb.collection('notifications').add({
       userId: customerId,

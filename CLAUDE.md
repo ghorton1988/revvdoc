@@ -194,13 +194,13 @@ NEXT_PUBLIC_APP_URL
 ## 10. Current Project Status
 
 **Last updated:** 2026-02-22
-**Current phase:** 3 — Core Build ✅ COMPLETE → entering Phase 4 (Integration)
+**Current phase:** 5 — Visuals ✅ COMPLETE → entering Phase 6 (Testing)
 
 **What's working:**
 - Next.js 14 project scaffolded with TypeScript + Tailwind
 - Full directory structure (all route groups, pages, API routes)
 - All TypeScript interfaces defined (`src/types/index.ts`)
-- Firestore security rules + indexes scaffolded
+- Firestore security rules deployed, 12 services seeded
 - Firebase client + Admin SDK initialized
 - Stripe server singleton + webhook handler
 - Google Maps dark-theme utilities + Haversine GPS throttle
@@ -212,24 +212,34 @@ NEXT_PUBLIC_APP_URL
 - **Booking flow:** 5-step (service → vehicle → date+address → review → Stripe Elements payment)
 - **Technician pages:** queue (job list + accept CTA), active-job (stage stepper + GPS broadcaster + Complete → capture payment)
 - **API routes:** /api/auth/session, /api/vehicles/decode-vin, /api/admin/assign-technician, /api/stripe/create-payment-intent, /api/stripe/capture-payment, /api/stripe/webhook
+- **Design system (Phase 5):**
+  - Leonardo-style dark navy + neon teal palette (replacing gold + neutral dark)
+  - Brand accent: `#00E5B4` (neon teal); Backgrounds: `#070E17` / `#0E1B28` / `#162436`
+  - Teal glow animations: `animate-fade-up`, `animate-shimmer`, `animate-glow-pulse`
+  - Global brand button hover glow (`.bg-brand:hover`)
+  - Vehicle card hover: teal border glow (`hover:shadow-glow-sm`)
+  - Active nav: teal line indicator at top of active item
+  - Shimmer skeleton loader (replaces `animate-pulse`)
+  - Subtle radial teal glow bleeding from top of body background
 - **Build:** `npm run build` passes clean (30 routes, 0 errors)
 
 **What's in progress:**
-- Nothing — Phase 3 is complete
+- Nothing — Phase 5 is complete
 
 **Blockers / open questions:**
 - `.env.local` must be filled in with real Firebase, Stripe, and Google Maps API keys before running
-- Firestore rules must be deployed: `firebase deploy --only firestore:rules,firestore:indexes`
+- Firestore rules deployed ✅; vehicles index (ownerId ASC, createdAt DESC) must be created manually in Firebase Console
 - Stripe webhook must be registered in Stripe Dashboard (or use `stripe listen` for local dev)
 - Google Maps JS API key must have Maps JavaScript API + Places API enabled in GCP Console
 
 **Next session should start with:**
-Phase 4 — Integration. Suggested order:
-1. Fill in `.env.local` and test auth flow end-to-end
-2. Seed Firestore with at least 2-3 real service catalog documents
-3. Deploy Firestore rules + indexes
-4. Test full booking flow with Stripe test card (4242 4242 4242 4242)
-5. Test technician accept → GPS broadcast → stage advance → capture payment
+Phase 6 — Testing. Suggested order:
+
+1. End-to-end auth flow (sign-up → sign-in → session cookie → middleware redirect)
+2. Add vehicle via VIN decode (NHTSA API)
+3. Full booking flow with Stripe test card (4242 4242 4242 4242)
+4. Technician accept → GPS broadcast → stage advance → capture payment
+5. Notifications (unread badge, mark-read)
 6. Remaining stub pages: admin panel pages, /history, /job-history, /notifications, /payment-methods, /vehicles/[vehicleId]
 
 ---

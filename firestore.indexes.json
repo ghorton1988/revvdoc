@@ -1,5 +1,8 @@
 {
   "indexes": [
+
+    // ── EXISTING INDEXES (unchanged) ─────────────────────────────────────────
+
     {
       "collectionGroup": "bookings",
       "queryScope": "COLLECTION",
@@ -99,7 +102,134 @@
         { "fieldPath": "isActive", "order": "ASCENDING" },
         { "fieldPath": "basePrice", "order": "ASCENDING" }
       ]
+    },
+
+    // ── WAVE 1 — MAINTENANCE SCHEDULES ───────────────────────────────────────
+
+    // All active schedules for a vehicle, ordered by mileage due
+    // Query: getSchedulesByVehicle(vehicleId) filtered to isActive=true
+    {
+      "collectionGroup": "maintenanceSchedules",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "vehicleId", "order": "ASCENDING" },
+        { "fieldPath": "isActive", "order": "ASCENDING" },
+        { "fieldPath": "nextDueMileage", "order": "ASCENDING" }
+      ]
+    },
+    // All active schedules for an owner, ordered by date due
+    // Query: getDueSchedulesByOwner(ownerId) for reminder sweep on sign-in
+    {
+      "collectionGroup": "maintenanceSchedules",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "ownerId", "order": "ASCENDING" },
+        { "fieldPath": "isActive", "order": "ASCENDING" },
+        { "fieldPath": "nextDueDate", "order": "ASCENDING" }
+      ]
+    },
+    // Schedules for a vehicle filtered by service type
+    // Query: findScheduleByType(vehicleId, serviceType) — used to avoid duplicates
+    {
+      "collectionGroup": "maintenanceSchedules",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "vehicleId", "order": "ASCENDING" },
+        { "fieldPath": "serviceType", "order": "ASCENDING" }
+      ]
+    },
+
+    // ── WAVE 1 — SUBSCRIPTIONS ────────────────────────────────────────────────
+
+    // Active subscriptions for a customer, sorted by period end (renewal alerts)
+    // Query: getActiveSubscriptions(customerId)
+    {
+      "collectionGroup": "subscriptions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "customerId", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "currentPeriodEnd", "order": "DESCENDING" }
+      ]
+    },
+    // Subscription check per vehicle (enforce one active plan per vehicle)
+    // Query: getSubscriptionByVehicle(vehicleId, status='active')
+    {
+      "collectionGroup": "subscriptions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "vehicleId", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" }
+      ]
+    },
+
+    // ── WAVE 1 — SUBSCRIPTION PLANS ───────────────────────────────────────────
+
+    // Active plans in catalog order
+    // Query: getActivePlans() for the /subscriptions browse page
+    {
+      "collectionGroup": "subscriptionPlans",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "isActive", "order": "ASCENDING" },
+        { "fieldPath": "period", "order": "ASCENDING" }
+      ]
+    },
+
+    // ── WAVE 1 — SYMPTOM REPORTS ──────────────────────────────────────────────
+
+    // A customer's report history, newest first
+    // Query: getReportsByCustomer(customerId)
+    {
+      "collectionGroup": "symptomReports",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "customerId", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    // Reports for a specific vehicle (vehicle detail / timeline page)
+    // Query: getReportsByVehicle(vehicleId)
+    {
+      "collectionGroup": "symptomReports",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "vehicleId", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+
+    // ── WAVE 1 — VEHICLE HEALTH ───────────────────────────────────────────────
+
+    // Owner's vehicles with alerts — used for dashboard "attention needed" roll-up
+    // Query: getVehiclesWithAlerts(ownerId) filtered to alertLevel != 'none'
+    {
+      "collectionGroup": "vehicleHealth",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "ownerId", "order": "ASCENDING" },
+        { "fieldPath": "alertLevel", "order": "ASCENDING" }
+      ]
+    },
+
+    // ── WAVE 1 — CHAT MESSAGES (subcollection) ────────────────────────────────
+    // messages/{messageId} inside bookings/{bookingId}
+    // Single-field orderBy('createdAt') is covered by Firestore's auto-index.
+    // A composite index is only needed here if filtering by type AND ordering by date.
+
+    // Chat messages of a specific type in a booking, ordered by time
+    // Query: getSystemMessages(bookingId) — for automated status message display
+    {
+      "collectionGroup": "messages",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "bookingId", "order": "ASCENDING" },
+        { "fieldPath": "type", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "ASCENDING" }
+      ]
     }
+
   ],
   "fieldOverrides": []
 }

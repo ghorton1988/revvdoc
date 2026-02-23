@@ -39,7 +39,7 @@ export default function CustomerLayout({ children }: { children: ReactNode }) {
       {/* Top bar */}
       <header className="sticky top-0 z-40 bg-surface-raised border-b border-surface-border">
         <div className="max-w-lg mx-auto px-4 h-14 flex items-center justify-between">
-          <span className="font-bold tracking-widest text-brand text-sm">REVVDOC</span>
+          <span className="font-bold tracking-widest text-brand-gradient text-sm">REVVDOC</span>
           <Link href="/notifications" className="relative p-2 -mr-2 text-text-secondary hover:text-text-primary transition-colors">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
               <path d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" />
@@ -53,15 +53,15 @@ export default function CustomerLayout({ children }: { children: ReactNode }) {
         </div>
       </header>
 
-      {/* Page content */}
+      {/* Page content — keyed by pathname so animate-fade-up re-triggers on every navigation */}
       <main className="flex-1 pb-20">
-        <div className="max-w-lg mx-auto">
+        <div key={pathname} className="max-w-lg mx-auto animate-fade-up">
           {children}
         </div>
       </main>
 
       {/* Bottom navigation */}
-      <nav className="fixed bottom-0 inset-x-0 z-40 bg-surface-raised border-t border-surface-border">
+      <nav className="fixed bottom-0 inset-x-0 z-40 bg-surface-raised border-t border-surface-border pb-safe">
         <div className="max-w-lg mx-auto flex items-stretch h-16">
           {NAV_ITEMS.map(({ href, label, svgPath }) => {
             const isActive =
@@ -72,10 +72,16 @@ export default function CustomerLayout({ children }: { children: ReactNode }) {
               <Link
                 key={href}
                 href={href}
-                className={`flex-1 flex flex-col items-center justify-center gap-0.5 text-xs font-medium transition-colors ${
+                className={`relative flex-1 flex flex-col items-center justify-center gap-0.5 text-xs font-medium transition-all duration-200 ${
                   isActive ? 'text-brand' : 'text-text-muted hover:text-text-secondary'
                 }`}
               >
+                {/* Active indicator — always rendered; width transitions 0→6 on active */}
+                <span
+                  className={`absolute top-0 left-1/2 -translate-x-1/2 h-0.5 bg-brand rounded-full transition-all duration-300 ease-out ${
+                    isActive ? 'w-6 shadow-glow-sm' : 'w-0'
+                  }`}
+                />
                 <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
                   <path d={svgPath} />
                 </svg>
