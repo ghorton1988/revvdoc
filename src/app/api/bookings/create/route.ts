@@ -26,9 +26,25 @@
 import { z } from 'zod';
 import { FieldValue } from 'firebase-admin/firestore';
 import { adminAuth, adminDb } from '@/lib/firebase/firebaseAdmin';
+import { geocodeAddress, buildAddressString } from '@/lib/maps/geocode';
 import type { Service, ServiceSnapshot, VehicleSnapshot } from '@/types';
 
 export const runtime = 'nodejs';
+
+/**
+ * Address sub-schema.
+ * street / city / state / zip are required — no booking can be dispatched
+ * without a service location. lat / lng default to 0 and are geocoded
+ * server-side (in the status route) when the booking is accepted.
+ */
+const addressSchema = z.object({
+  street: z.string().min(1, 'street is required'),
+  city:   z.string().min(1, 'city is required'),
+  state:  z.string().length(2, 'state must be a 2-letter code (e.g. "MD")'),
+  zip:    z.string().regex(/^\d{5}(-\d{4})?$/, 'zip must be 5 or 9 digits'),
+  lat:    z.number().default(0),
+  lng:    z.number().default(0),
+});
 
 const bodySchema = z.object({
   userId:              z.string().min(1),
@@ -36,6 +52,7 @@ const bodySchema = z.object({
   serviceId:           z.string().min(1),
   scheduledDate:       z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'scheduledDate must be YYYY-MM-DD'),
   scheduledTimeWindow: z.enum(['morning', 'afternoon', 'evening']),
+  address:             addressSchema,
   notes:               z.string().max(500).optional(),
   source:              z.enum(['assistant', 'schedule', 'history', 'manual']).optional(),
 });
@@ -77,7 +94,7 @@ export async function POST(request: Request) {
       return Response.json({ error: 'Invalid request body', details: err }, { status: 400 });
     }
 
-    const { userId, vehicleId, serviceId, scheduledDate, scheduledTimeWindow, notes, source } = body;
+    const { userId, vehicleId, serviceId, scheduledDate, scheduledTimeWindow, address, notes, source } = body;
 
     // Ensure authenticated user matches the requested userId
     if (decodedToken.uid !== userId) {
@@ -140,6 +157,7 @@ export async function POST(request: Request) {
     const bookingRef = await adminDb.collection('bookings').add(clean({
       customerId:           userId,
       technicianId:         null,
+      jobId:                null,
       vehicleId,
       serviceId,
       serviceSnapshot,
@@ -147,7 +165,7 @@ export async function POST(request: Request) {
       scheduledAt,
       flexDateEnd:          null,
       status:               'pending',
-      address:              null,
+      address,              // validated above — street/city/state/zip required; lat/lng default 0
       totalPrice:           serviceData.basePrice ?? 0,
       stripePaymentIntentId: null,
       scheduledTimeWindow,
@@ -157,7 +175,24 @@ export async function POST(request: Request) {
     }));
     console.log('[bookings/create] Booking written, id:', bookingRef.id);
 
-    return Response.json({ ok: true, bookingId: bookingRef.id }, { status: 201 });
+    // Geocode the address immediately — fire-and-forget so the response is
+    // not blocked. The booking detail page subscribes via listenToBooking and
+    // will receive the coords via a second onSnapshot push once the write lands.
+    // The status route re-runs geocoding on 'accepted' as a fallback in case
+    // this call fails (e.g. cold-start latency, transient API error).
+    const bookingId = bookingRef.id;
+    geocodeAddress(buildAddressString(address))
+      .then(async (coords) => {
+        if (!coords) return; // already logged inside geocodeAddress
+        await adminDb.collection('bookings').doc(bookingId).update({
+          'address.lat': coords.lat,
+          'address.lng': coords.lng,
+        });
+        console.log(`[bookings/create] geocoded ${bookingId} → ${coords.lat}, ${coords.lng}`);
+      })
+      .catch((err) => console.error('[bookings/create] geocode error:', err));
+
+    return Response.json({ ok: true, bookingId }, { status: 201 });
   } catch (err) {
     console.error('[bookings/create] ERROR:', err);
     return Response.json(

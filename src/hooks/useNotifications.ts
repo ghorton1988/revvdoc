@@ -16,8 +16,19 @@ export function useNotifications(uid: string | null): { unreadCount: number } {
       setUnreadCount(0);
       return;
     }
-    const unsub = listenToUnreadCount(uid, setUnreadCount);
-    return () => unsub();
+    let unsub: undefined | (() => void);
+    try {
+      unsub = listenToUnreadCount(uid, setUnreadCount);
+    } catch (e) {
+      console.error('[useNotifications] listenToUnreadCount failed', e);
+    }
+    return () => {
+      try {
+        if (typeof unsub === 'function') unsub();
+      } catch (e) {
+        console.warn('[useNotifications] unsub failed', e);
+      }
+    };
   }, [uid]);
 
   return { unreadCount };

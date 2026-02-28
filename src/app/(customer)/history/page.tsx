@@ -12,6 +12,7 @@
  */
 
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { useAuth } from '@/hooks/useAuth';
 import { getHistoryByCustomer } from '@/services/serviceHistoryService';
 import { getVehiclesByOwner } from '@/services/vehicleService';
@@ -91,7 +92,7 @@ export default function HistoryPage() {
           </div>
         ) : filtered.length === 0 ? (
           /* Empty state */
-          <div className="flex flex-col items-center justify-center py-16 space-y-3">
+          <div className="flex flex-col items-center justify-center py-16 space-y-3 text-center">
             <svg
               className="text-text-muted"
               width="40"
@@ -105,11 +106,22 @@ export default function HistoryPage() {
             >
               <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
             </svg>
-            <p className="text-text-muted text-sm">
-              {filterVehicleId === ALL_VEHICLES
-                ? 'No service records yet.'
-                : 'No records for this vehicle.'}
-            </p>
+            <div className="space-y-1">
+              <p className="text-text-primary text-sm font-medium">No completed services yet</p>
+              <p className="text-text-muted text-xs">
+                {filterVehicleId === ALL_VEHICLES
+                  ? 'Completed bookings will appear here.'
+                  : 'No completed services for this vehicle.'}
+              </p>
+            </div>
+            {filterVehicleId === ALL_VEHICLES && (
+              <Link
+                href="/bookings"
+                className="px-4 py-2 bg-brand/10 border border-brand/30 text-brand rounded-lg text-sm font-semibold"
+              >
+                View Upcoming Bookings
+              </Link>
+            )}
           </div>
         ) : (
           /* Timeline */

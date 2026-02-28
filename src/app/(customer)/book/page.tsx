@@ -211,55 +211,110 @@ const TIME_WINDOWS: { key: BookingTimeWindow; label: string; range: string }[] =
   { key: 'evening',   label: 'Evening',   range: '5 PM – 8 PM' },
 ];
 
+interface BookingAddress {
+  street: string;
+  city:   string;
+  state:  string;
+  zip:    string;
+  lat:    number;
+  lng:    number;
+}
+
 interface ScheduleResult {
-  scheduledDate: string;            // YYYY-MM-DD
+  scheduledDate:       string;            // YYYY-MM-DD
   scheduledTimeWindow: BookingTimeWindow;
+  address:             BookingAddress;
 }
 
 function Step3Schedule({ onNext }: { onNext: (v: ScheduleResult) => void }) {
   const todayStr = new Date().toISOString().split('T')[0];
-  const [date, setDate] = useState('');
+  const [date, setDate]             = useState('');
   const [timeWindow, setTimeWindow] = useState<BookingTimeWindow | null>(null);
-  const [error, setError] = useState('');
+  const [street, setStreet]         = useState('');
+  const [city, setCity]             = useState('');
+  const [addrState, setAddrState]   = useState('');
+  const [zip, setZip]               = useState('');
 
-  function handleNext() {
-    if (!date) { setError('Please select a date.'); return; }
-    if (!timeWindow) { setError('Please select a time window.'); return; }
-    if (date < todayStr) { setError('Please choose a future date.'); return; }
-    onNext({ scheduledDate: date, scheduledTimeWindow: timeWindow });
+  // Per-field errors so each input can show its own message inline
+  const [errors, setErrors] = useState<{
+    date?: string; timeWindow?: string;
+    street?: string; city?: string; state?: string; zip?: string;
+  }>({});
+
+  function clearError(field: keyof typeof errors) {
+    setErrors((e) => ({ ...e, [field]: undefined }));
   }
 
-  const inputCls =
-    'w-full bg-surface-raised border border-surface-border rounded-lg px-3 py-2 text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-brand';
+  function handleNext() {
+    const next: typeof errors = {};
+
+    if (!date)              next.date       = 'Please select a date.';
+    else if (date < todayStr) next.date     = 'Please choose a future date.';
+    if (!timeWindow)        next.timeWindow = 'Please select a time window.';
+    if (!street.trim())     next.street     = 'Street address is required.';
+    if (!city.trim())       next.city       = 'City is required.';
+    if (!/^[A-Za-z]{2}$/.test(addrState.trim()))
+                            next.state      = 'Enter a 2-letter state code (e.g. MD).';
+    if (!/^\d{5}(-\d{4})?$/.test(zip.trim()))
+                            next.zip        = 'Enter a valid 5-digit ZIP (e.g. 20650).';
+
+    if (Object.keys(next).length > 0) { setErrors(next); return; }
+
+    onNext({
+      scheduledDate:       date,
+      scheduledTimeWindow: timeWindow!,
+      address: {
+        street: street.trim(),
+        city:   city.trim(),
+        state:  addrState.trim().toUpperCase(),
+        zip:    zip.trim(),
+        lat:    0,   // geocoded server-side on accept
+        lng:    0,
+      },
+    });
+  }
+
+  const inputCls = (hasErr?: string) =>
+    `w-full bg-surface-raised border rounded-lg px-3 py-2 text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-brand ${
+      hasErr ? 'border-status-fault' : 'border-surface-border'
+    }`;
+
+  const errMsg = (msg?: string) =>
+    msg ? <p className="text-status-fault text-xs mt-1">{msg}</p> : null;
 
   return (
     <div className="p-4 space-y-5">
       <div>
-        <h2 className="text-lg font-semibold text-text-primary">Pick a Date & Time</h2>
-        <p className="text-sm text-text-muted mt-0.5">When would you like service?</p>
+        <h2 className="text-lg font-semibold text-text-primary">Schedule & Location</h2>
+        <p className="text-sm text-text-muted mt-0.5">When and where would you like service?</p>
       </div>
 
-      <div className="space-y-2">
+      {/* Date */}
+      <div className="space-y-1">
         <label className="block text-xs text-text-muted">Preferred Date *</label>
         <input
           type="date"
           min={todayStr}
           value={date}
-          onChange={(e) => { setDate(e.target.value); setError(''); }}
-          className={inputCls}
+          onChange={(e) => { setDate(e.target.value); clearError('date'); }}
+          className={inputCls(errors.date)}
         />
+        {errMsg(errors.date)}
       </div>
 
+      {/* Time window */}
       <div className="space-y-2">
         <p className="text-xs text-text-muted">Preferred Time Window *</p>
         <div className="grid grid-cols-3 gap-2">
           {TIME_WINDOWS.map(({ key, label, range }) => (
             <button
               key={key}
-              onClick={() => { setTimeWindow(key); setError(''); }}
+              onClick={() => { setTimeWindow(key); clearError('timeWindow'); }}
               className={`flex flex-col items-center py-3 px-2 rounded-xl border transition-colors ${
                 timeWindow === key
                   ? 'bg-brand/15 border-brand text-brand'
+                  : errors.timeWindow
+                  ? 'bg-surface-raised border-status-fault text-text-muted'
                   : 'bg-surface-raised border-surface-border text-text-muted hover:border-brand/40'
               }`}
             >
@@ -268,9 +323,60 @@ function Step3Schedule({ onNext }: { onNext: (v: ScheduleResult) => void }) {
             </button>
           ))}
         </div>
+        {errMsg(errors.timeWindow)}
       </div>
 
-      {error && <p className="text-status-fault text-sm">{error}</p>}
+      {/* Service address */}
+      <div className="space-y-3">
+        <p className="text-xs text-text-muted font-medium">Service Address *</p>
+
+        <div className="space-y-1">
+          <input
+            type="text"
+            placeholder="Street address"
+            value={street}
+            onChange={(e) => { setStreet(e.target.value); clearError('street'); }}
+            className={inputCls(errors.street)}
+          />
+          {errMsg(errors.street)}
+        </div>
+
+        <div className="space-y-1">
+          <input
+            type="text"
+            placeholder="City"
+            value={city}
+            onChange={(e) => { setCity(e.target.value); clearError('city'); }}
+            className={inputCls(errors.city)}
+          />
+          {errMsg(errors.city)}
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1">
+            <input
+              type="text"
+              placeholder="State (e.g. MD)"
+              maxLength={2}
+              value={addrState}
+              onChange={(e) => { setAddrState(e.target.value); clearError('state'); }}
+              className={inputCls(errors.state)}
+            />
+            {errMsg(errors.state)}
+          </div>
+          <div className="space-y-1">
+            <input
+              type="text"
+              placeholder="ZIP code"
+              maxLength={10}
+              value={zip}
+              onChange={(e) => { setZip(e.target.value); clearError('zip'); }}
+              className={inputCls(errors.zip)}
+            />
+            {errMsg(errors.zip)}
+          </div>
+        </div>
+      </div>
 
       <button onClick={handleNext} className="w-full py-3 bg-brand text-surface-base rounded-xl font-semibold">
         Continue
@@ -286,6 +392,7 @@ function Step4Confirm({
   vehicle,
   scheduledDate,
   scheduledTimeWindow,
+  address,
   onConfirm,
   loading,
   error,
@@ -294,6 +401,7 @@ function Step4Confirm({
   vehicle: Vehicle;
   scheduledDate: string;
   scheduledTimeWindow: BookingTimeWindow;
+  address: BookingAddress;
   onConfirm: (notes: string) => void;
   loading: boolean;
   error: string;
@@ -314,6 +422,7 @@ function Step4Confirm({
     { label: 'Date',     value: formatLocalDate(scheduledDate) },
     { label: 'Window',   value: `${windowLabel} (${TIME_WINDOWS.find((w) => w.key === scheduledTimeWindow)?.range})` },
     { label: 'Duration', value: formatDuration(service.durationMins) },
+    { label: 'Address',  value: `${address.street}, ${address.city}, ${address.state} ${address.zip}` },
   ];
 
   return (
@@ -425,12 +534,13 @@ function BookForm() {
   const [vehicle, setVehicle] = useState<Vehicle | null>(null);
   const [scheduledDate, setScheduledDate] = useState('');
   const [scheduledTimeWindow, setScheduledTimeWindow] = useState<BookingTimeWindow | null>(null);
+  const [address, setAddress] = useState<BookingAddress | null>(null);
   const [confirmLoading, setConfirmLoading] = useState(false);
   const [confirmError, setConfirmError] = useState('');
   const [createdBookingId, setCreatedBookingId] = useState<string | null>(null);
 
   async function handleConfirm(notes: string) {
-    if (!user || !service || !vehicle || !scheduledDate || !scheduledTimeWindow) return;
+    if (!user || !service || !vehicle || !scheduledDate || !scheduledTimeWindow || !address) return;
     setConfirmLoading(true);
     setConfirmError('');
 
@@ -452,6 +562,7 @@ function BookForm() {
           serviceId:           service.serviceId,
           scheduledDate,
           scheduledTimeWindow,
+          address,
           notes:               notes || undefined,
           source:              initialServiceId ? 'manual' : 'manual',
         }),
@@ -533,20 +644,22 @@ function BookForm() {
 
       {step === 3 && (
         <Step3Schedule
-          onNext={({ scheduledDate: d, scheduledTimeWindow: tw }) => {
+          onNext={({ scheduledDate: d, scheduledTimeWindow: tw, address: a }) => {
             setScheduledDate(d);
             setScheduledTimeWindow(tw);
+            setAddress(a);
             setStep(4);
           }}
         />
       )}
 
-      {step === 4 && service && vehicle && scheduledDate && scheduledTimeWindow && (
+      {step === 4 && service && vehicle && scheduledDate && scheduledTimeWindow && address && (
         <Step4Confirm
           service={service}
           vehicle={vehicle}
           scheduledDate={scheduledDate}
           scheduledTimeWindow={scheduledTimeWindow}
+          address={address}
           onConfirm={handleConfirm}
           loading={confirmLoading}
           error={confirmError}

@@ -38,6 +38,7 @@ function mapBooking(id: string, data: Record<string, unknown>): Booking {
     bookingId: id,
     customerId: data.customerId as string,
     technicianId: (data.technicianId as string | null) ?? null,
+    jobId: (data.jobId as string | null) ?? null,
     vehicleId: data.vehicleId as string,
     serviceId: data.serviceId as string,
     serviceSnapshot: data.serviceSnapshot as Booking['serviceSnapshot'],

@@ -28,14 +28,22 @@
 import { z } from 'zod';
 import { FieldValue } from 'firebase-admin/firestore';
 import { adminAuth, adminDb } from '@/lib/firebase/firebaseAdmin';
+import { geocodeAddress, buildAddressString } from '@/lib/maps/geocode';
 import type { BookingStatus } from '@/types';
 
 export const runtime = 'nodejs';
+
+/**
+ * Placeholder technician ID used during development / demo.
+ * Replace with real technician assignment logic before production.
+ */
+const DEMO_TECH_ID = 'demo-tech-1';
 
 /** Valid forward-only status progression. */
 const STATUS_ORDER: BookingStatus[] = [
   'pending',
   'accepted',
+  'scheduled',
   'en_route',
   'in_progress',
   'complete',
@@ -44,10 +52,11 @@ const STATUS_ORDER: BookingStatus[] = [
 const bodySchema = z.object({
   bookingId:        z.string().min(1),
   userId:           z.string().min(1),
-  status:           z.enum(['pending', 'accepted', 'en_route', 'in_progress', 'complete', 'cancelled']),
+  status:           z.enum(['pending', 'accepted', 'scheduled', 'en_route', 'in_progress', 'complete', 'cancelled']),
   techNotes:        z.string().max(1000).optional(),
   mileageAtService: z.number().int().nonnegative().optional(),
 });
+
 
 export async function PATCH(request: Request) {
   // 1. Auth
@@ -89,8 +98,14 @@ export async function PATCH(request: Request) {
   const isCustomer    = booking.customerId === userId;
   const isTechnician  = booking.technicianId === userId;
 
+  // Special case: any authenticated user may accept a pending booking.
+  // Before acceptance the technicianId field is null, so isTechnician would
+  // always be false — the normal party-check would incorrectly block it.
+  const isAcceptingPending =
+    targetStatus === 'accepted' && currentStatus === 'pending';
+
   // 4. Check caller is a party to this booking
-  if (!isCustomer && !isTechnician) {
+  if (!isCustomer && !isTechnician && !isAcceptingPending) {
     return Response.json({ error: 'Forbidden — not your booking' }, { status: 403 });
   }
 
@@ -104,8 +119,9 @@ export async function PATCH(request: Request) {
       return Response.json({ error: 'Only pending bookings can be cancelled' }, { status: 409 });
     }
   } else {
-    // Forward transitions: technician only
-    if (!isTechnician) {
+    // Forward transitions: technician only — except for the initial acceptance
+    // of a pending booking (no technician is assigned yet at that point).
+    if (!isTechnician && !isAcceptingPending) {
       return Response.json({ error: 'Only the assigned technician can advance booking status' }, { status: 403 });
     }
 
@@ -118,7 +134,75 @@ export async function PATCH(request: Request) {
     }
   }
 
-  // 6. Apply status update
+  // 6. Apply status update — branched by target status
+  //
+  // ── accepted: create job doc + write jobId back to booking (atomic) ─────────
+  //
+  // A job document must exist before the booking detail page can subscribe
+  // to live tech location via useLiveJob(booking.jobId).
+  //
+  // Idempotency: if booking already has a jobId (e.g. duplicate request),
+  // skip creation and return the existing id immediately.
+  if (targetStatus === 'accepted') {
+    const existingJobId = booking.jobId as string | null | undefined;
+
+    if (existingJobId) {
+      console.log(`[bookings/status] booking ${bookingId} already has jobId ${existingJobId} — skipping job creation`);
+      return Response.json({ bookingId, status: targetStatus, jobId: existingJobId }, { status: 200 });
+    }
+
+    const jobRef   = adminDb.collection('jobs').doc(); // auto-generated ID
+    const newJobId = jobRef.id;
+
+    // Atomic: create job doc + stamp jobId + technicianId on booking.
+    await adminDb.runTransaction(async (tx) => {
+      tx.set(jobRef, {
+        bookingId,
+        technicianId: DEMO_TECH_ID,  // placeholder — replace with real assignment
+        customerId:   booking.customerId as string,
+        status:       'accepted',    // job-level status mirror
+        currentStage: 'dispatched',  // first stage in JobStage progression
+        stages:       [],
+        techLocation: null,          // populated when tech starts GPS broadcast
+        route:        null,          // reserved for future route polyline storage
+        etaMinutes:   null,          // populated by technician app
+        notes:        null,
+        startedAt:    null,
+        completedAt:  null,
+        createdAt:    FieldValue.serverTimestamp(),
+        updatedAt:    FieldValue.serverTimestamp(),
+      });
+      tx.update(adminDb.collection('bookings').doc(bookingId), {
+        status:       targetStatus,
+        technicianId: DEMO_TECH_ID,  // stamp placeholder tech on booking
+        jobId:        newJobId,
+        updatedAt:    FieldValue.serverTimestamp(),
+      });
+    });
+
+    console.log(`JOB CREATED FOR BOOKING ${bookingId}: ${newJobId}`);
+
+    // Fallback geocode: if coords are still 0 (create-time geocode failed or
+    // booking pre-dates that feature), resolve them now. Fire-and-forget —
+    // listenToBooking subscribers receive the update via a second onSnapshot.
+    const addr = booking.address as { street: string; city: string; state: string; zip: string; lat: number; lng: number } | null;
+    if (addr?.street && !(addr.lat && addr.lng)) {
+      geocodeAddress(buildAddressString(addr))
+        .then(async (coords) => {
+          if (!coords) return;
+          await adminDb.collection('bookings').doc(bookingId).update({
+            'address.lat': coords.lat,
+            'address.lng': coords.lng,
+          });
+          console.log(`[bookings/status] geocoded ${bookingId} → ${coords.lat}, ${coords.lng}`);
+        })
+        .catch((err: unknown) => console.error('[bookings/status] geocode error:', err));
+    }
+
+    return Response.json({ bookingId, status: targetStatus, jobId: newJobId }, { status: 200 });
+  }
+
+  // ── All other transitions: simple status update ───────────────────────────
   await adminDb.collection('bookings').doc(bookingId).update({
     status:    targetStatus,
     updatedAt: FieldValue.serverTimestamp(),

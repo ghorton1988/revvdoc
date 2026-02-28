@@ -8,15 +8,16 @@ import { formatDate, formatPrice } from '@/lib/formatters';
 import type { Booking, BookingStatus } from '@/types';
 
 const STATUS_STYLES: Record<BookingStatus, { label: string; cls: string }> = {
-  pending: { label: 'Pending', cls: 'bg-amber-500/15 text-amber-400 border-amber-500/30' },
-  accepted: { label: 'Accepted', cls: 'bg-brand/15 text-brand border-brand/30' },
-  en_route: { label: 'En Route', cls: 'bg-brand/15 text-brand border-brand/30' },
-  in_progress: { label: 'In Progress', cls: 'bg-brand/15 text-brand border-brand/30' },
-  complete: { label: 'Complete', cls: 'bg-green-500/15 text-green-400 border-green-500/30' },
-  cancelled: { label: 'Cancelled', cls: 'bg-surface-raised text-text-muted border-surface-border' },
+  pending:     { label: 'Requested',  cls: 'bg-amber-500/15 text-amber-400 border-amber-500/30' },
+  accepted:    { label: 'Accepted',   cls: 'bg-brand/15 text-brand border-brand/30' },
+  scheduled:   { label: 'Scheduled',  cls: 'bg-brand/15 text-brand border-brand/30' },
+  en_route:    { label: 'En Route',   cls: 'bg-brand/15 text-brand border-brand/30' },
+  in_progress: { label: 'In Service', cls: 'bg-brand/15 text-brand border-brand/30' },
+  complete:    { label: 'Complete',   cls: 'bg-green-500/15 text-green-400 border-green-500/30' },
+  cancelled:   { label: 'Cancelled',  cls: 'bg-surface-raised text-text-muted border-surface-border' },
 };
 
-const ACTIVE_STATUSES: BookingStatus[] = ['accepted', 'en_route', 'in_progress'];
+const ACTIVE_STATUSES: BookingStatus[] = ['accepted', 'scheduled', 'en_route', 'in_progress'];
 const UPCOMING_STATUSES: BookingStatus[] = ['pending', ...ACTIVE_STATUSES];
 
 function BookingRow({ booking }: { booking: Booking }) {

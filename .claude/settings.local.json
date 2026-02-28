@@ -17,7 +17,9 @@
       "Bash(PATH=\"/Users/ivannalisa/.nvm/versions/node/v20.20.0/bin:$PATH\" npm:*)",
       "Bash(PATH=\"/Users/ivannalisa/.nvm/versions/node/v20.20.0/bin:$PATH\" npm run build:*)",
       "Bash(PATH=\"/Users/ivannalisa/.nvm/versions/node/v20.20.0/bin:$PATH\" /Users/ivannalisa/.nvm/versions/node/v20.20.0/bin/node:*)",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "Bash(export PATH=\"$HOME/.nvm/versions/node/v20.20.0/bin:$PATH\")",
+      "Bash(node --version:*)"
     ]
   }
 }

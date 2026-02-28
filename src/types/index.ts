@@ -12,12 +12,13 @@ export type VehicleStatus = 'OPTIMAL' | 'SERVICE_DUE' | 'FAULT';
 export type ServiceCategory = 'mechanic' | 'detailing' | 'diagnostic';
 
 export type BookingStatus =
-  | 'pending'
-  | 'accepted'
-  | 'en_route'
-  | 'in_progress'
-  | 'complete'
-  | 'cancelled';
+  | 'pending'      // submitted, awaiting technician assignment
+  | 'accepted'     // technician accepted the job
+  | 'scheduled'    // appointment date/time confirmed by technician
+  | 'en_route'     // technician is driving to customer
+  | 'in_progress'  // service actively underway
+  | 'complete'     // service done, payment captured
+  | 'cancelled';   // cancelled by customer or admin
 
 /** Time-of-day preference selected during booking flow. */
 export type BookingTimeWindow = 'morning' | 'afternoon' | 'evening';
@@ -160,6 +161,7 @@ export interface Booking {
   bookingId: string;
   customerId: string;                  // users/{uid}
   technicianId: string | null;         // null until accepted
+  jobId: string | null;                // set atomically when status → 'accepted'
   vehicleId: string;
   serviceId: string;
   serviceSnapshot: ServiceSnapshot;   // denormalized at creation time

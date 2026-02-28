@@ -10,22 +10,37 @@ const NAV_ITEMS = [
   {
     href: '/dashboard',
     label: 'Home',
+    // House icon
     svgPath: 'M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25',
+    alsoActive: [] as string[],
   },
   {
     href: '/services',
-    label: 'Book',
-    svgPath: 'M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5',
+    label: 'Services',
+    // Wrench icon — service catalog entry point; /book wizard flows from here
+    svgPath: 'M21.75 6.75a4.5 4.5 0 01-4.884 4.484c-1.076-.091-2.264.071-2.95.904l-7.152 8.684a2.548 2.548 0 11-3.586-3.586l8.684-7.152c.833-.686.995-1.874.904-2.95a4.5 4.5 0 016.336-4.486l-3.276 3.276a3.004 3.004 0 002.25 2.25l3.276-3.276c.256.565.398 1.192.398 1.852z',
+    alsoActive: ['/book'],
   },
   {
-    href: '/history',
-    label: 'History',
-    svgPath: 'M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z',
+    href: '/vehicles',
+    label: 'Garage',
+    // Truck/car icon — vehicles, health, maintenance timeline
+    svgPath: 'M8.25 18.75a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h6m-9 0H3.375a1.125 1.125 0 01-1.125-1.125V14.25m17.25 4.5a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h1.125c.621 0 1.129-.504 1.09-1.124a17.902 17.902 0 00-3.213-9.193 2.056 2.056 0 00-1.58-.86H14.25M16.5 18.75h-2.25m0-11.177v-.958c0-.568-.422-1.048-.987-1.106a48.554 48.554 0 00-10.026 0 1.106 1.106 0 00-.987 1.106v7.635m12-6.677v6.677m0 4.5v-4.5m0 0h-12',
+    alsoActive: [] as string[],
+  },
+  {
+    href: '/bookings',
+    label: 'Activity',
+    // Calendar icon — bookings, history, technician chat
+    svgPath: 'M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5',
+    alsoActive: ['/history', '/jobs'],
   },
   {
     href: '/profile',
     label: 'Profile',
+    // User icon — account and settings
     svgPath: 'M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z',
+    alsoActive: ['/notifications', '/payment-methods'],
   },
 ];
 
@@ -63,11 +78,11 @@ export default function CustomerLayout({ children }: { children: ReactNode }) {
       {/* Bottom navigation */}
       <nav className="fixed bottom-0 inset-x-0 z-40 bg-surface-raised border-t border-surface-border pb-safe">
         <div className="max-w-lg mx-auto flex items-stretch h-16">
-          {NAV_ITEMS.map(({ href, label, svgPath }) => {
+          {NAV_ITEMS.map(({ href, label, svgPath, alsoActive }) => {
             const isActive =
               pathname === href ||
               (href !== '/dashboard' && pathname.startsWith(href + '/')) ||
-              (href !== '/dashboard' && pathname === href);
+              alsoActive.some((p) => pathname === p || pathname.startsWith(p + '/'));
             return (
               <Link
                 key={href}
